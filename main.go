@@ -245,6 +245,7 @@ func (b *Bot) announce(text string) {
 		logf("dropped announcement (not joined yet): %s", text)
 		return
 	}
+	logf("announcing: %s", text)
 	b.send(fmt.Sprintf("PRIVMSG %s :%s", b.cfg.Channel, text))
 }
 
