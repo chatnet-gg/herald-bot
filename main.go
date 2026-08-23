@@ -209,6 +209,26 @@ func (b *Bot) dispatch(l Line) {
 			b.joined = true
 			b.mu.Unlock()
 		}
+
+	case "KICK":
+		// l.Params here is [channel, kicked_nick, ...]; target() only
+		// returns the first param, so check Params[1] directly rather
+		// than reusing it the way JOIN/PRIVMSG do above.
+		if len(l.Params) >= 2 && strings.EqualFold(l.target(), b.cfg.Channel) && strings.EqualFold(l.Params[1], b.cfg.Nick) {
+			b.mu.Lock()
+			b.joined = false
+			b.mu.Unlock()
+			logf("kicked from %s, rejoining", b.cfg.Channel)
+			b.send("JOIN " + b.cfg.Channel)
+		}
+
+	case "ERROR":
+		logf("server ERROR: %s", l.Trailing)
+
+	default:
+		if strings.HasPrefix(l.Command, "4") || strings.HasPrefix(l.Command, "5") {
+			logf("unhandled numeric %s: %s", l.Command, l.Trailing)
+		}
 	}
 }
 
