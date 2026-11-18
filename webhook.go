@@ -52,7 +52,13 @@ func (b *Bot) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b.announce(line)
+	var meta struct {
+		Repository struct {
+			FullName string `json:"full_name"`
+		} `json:"repository"`
+	}
+	_ = json.Unmarshal(body, &meta)
+	b.announce(meta.Repository.FullName, line)
 	w.WriteHeader(http.StatusOK)
 }
 

@@ -37,6 +37,9 @@ type Config struct {
 	Channel          string
 	HTTPAddr         string
 	WebhookSecret    string
+	// lower-cased "owner/repo" -> extra channels that also get that repo's
+	// announcements (HERALD_REPO_CHANNELS, see parseRepoChannels).
+	RepoChannels map[string][]string
 }
 
 func loadConfig() Config {
@@ -49,7 +52,57 @@ func loadConfig() Config {
 		Channel:          getenv("HERALD_CHANNEL", "#CN-Bot"),
 		HTTPAddr:         getenv("HERALD_HTTP_ADDR", ":8080"),
 		WebhookSecret:    mustEnv("HERALD_WEBHOOK_SECRET"),
+		RepoChannels:     parseRepoChannels(os.Getenv("HERALD_REPO_CHANNELS")),
 	}
+}
+
+// parseRepoChannels reads "owner/repo=#a,#b;other/repo=#c": the extra channels
+// that also receive the announcements of a repository. Entries that are
+// malformed, or whose channels do not start with #, are ignored.
+func parseRepoChannels(s string) map[string][]string {
+	m := map[string][]string{}
+	for _, entry := range strings.Split(s, ";") {
+		repo, chans, ok := strings.Cut(strings.TrimSpace(entry), "=")
+		repo = strings.ToLower(strings.TrimSpace(repo))
+		if !ok || repo == "" {
+			continue
+		}
+		for _, c := range strings.Split(chans, ",") {
+			if c = strings.TrimSpace(c); strings.HasPrefix(c, "#") {
+				m[repo] = append(m[repo], c)
+			}
+		}
+	}
+	return m
+}
+
+// allChannels is every channel the bot is in: the main one plus every extra.
+func (b *Bot) allChannels() []string {
+	return b.channelsFor("")
+}
+
+// channelsFor lists where an announcement of repo goes: always the main
+// channel, then the extra channels configured for that repo. With an empty
+// repo it returns the main channel plus every configured extra channel.
+func (b *Bot) channelsFor(repo string) []string {
+	out := []string{b.cfg.Channel}
+	seen := map[string]bool{strings.ToLower(b.cfg.Channel): true}
+	add := func(chans []string) {
+		for _, c := range chans {
+			if !seen[strings.ToLower(c)] {
+				seen[strings.ToLower(c)] = true
+				out = append(out, c)
+			}
+		}
+	}
+	if repo == "" {
+		for _, chans := range b.cfg.RepoChannels {
+			add(chans)
+		}
+	} else {
+		add(b.cfg.RepoChannels[strings.ToLower(repo)])
+	}
+	return out
 }
 
 func mustEnv(key string) string {
@@ -200,8 +253,10 @@ func (b *Bot) dispatch(l Line) {
 		}
 
 	case "001":
-		b.send("JOIN " + b.cfg.Channel)
-		logf("registered, joined %s", b.cfg.Channel)
+		for _, c := range b.allChannels() {
+			b.send("JOIN " + c)
+		}
+		logf("registered, joined %s", strings.Join(b.allChannels(), " "))
 
 	case "JOIN":
 		if strings.EqualFold(l.Nick, b.cfg.Nick) && strings.EqualFold(l.target(), b.cfg.Channel) {
@@ -214,12 +269,19 @@ func (b *Bot) dispatch(l Line) {
 		// l.Params here is [channel, kicked_nick, ...]; target() only
 		// returns the first param, so check Params[1] directly rather
 		// than reusing it the way JOIN/PRIVMSG do above.
-		if len(l.Params) >= 2 && strings.EqualFold(l.target(), b.cfg.Channel) && strings.EqualFold(l.Params[1], b.cfg.Nick) {
-			b.mu.Lock()
-			b.joined = false
-			b.mu.Unlock()
-			logf("kicked from %s, rejoining", b.cfg.Channel)
-			b.send("JOIN " + b.cfg.Channel)
+		if len(l.Params) >= 2 && strings.EqualFold(l.Params[1], b.cfg.Nick) {
+			for _, c := range b.allChannels() {
+				if !strings.EqualFold(l.target(), c) {
+					continue
+				}
+				if strings.EqualFold(c, b.cfg.Channel) {
+					b.mu.Lock()
+					b.joined = false
+					b.mu.Unlock()
+				}
+				logf("kicked from %s, rejoining", c)
+				b.send("JOIN " + c)
+			}
 		}
 
 	case "ERROR":
@@ -237,7 +299,7 @@ func (b *Bot) dispatch(l Line) {
 // in this project: a webhook event that couldn't be announced right
 // this second (bot mid-reconnect) isn't worth GitHub retrying the whole
 // delivery over, and there's no queue to replay it into anyway.
-func (b *Bot) announce(text string) {
+func (b *Bot) announce(repo, text string) {
 	b.mu.Lock()
 	joined := b.joined
 	b.mu.Unlock()
@@ -246,7 +308,9 @@ func (b *Bot) announce(text string) {
 		return
 	}
 	logf("announcing: %s", text)
-	b.send(fmt.Sprintf("PRIVMSG %s :%s", b.cfg.Channel, text))
+	for _, c := range b.channelsFor(repo) {
+		b.send(fmt.Sprintf("PRIVMSG %s :%s", c, text))
+	}
 }
 
 func (b *Bot) serveHTTP() {

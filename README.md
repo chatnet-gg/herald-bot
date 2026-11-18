@@ -38,6 +38,11 @@ Optional env vars (with their defaults): `IRC_SERVER`
 `HERALD_NICKSERV_ACCOUNT` (Herald), `HERALD_CHANNEL` (#CN-Bot),
 `HERALD_HTTP_ADDR` (:8080).
 
+`HERALD_REPO_CHANNELS` sends some repositories to more channels than the main
+one, for example `owner/repo=#dev,#ops;owner/other=#dev`. Every repository
+still announces in `HERALD_CHANNEL`; the extra channels are joined at start-up
+and rejoined after a kick. Repository names are matched without regard to case.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
