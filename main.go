@@ -76,6 +76,33 @@ func parseRepoChannels(s string) map[string][]string {
 	return m
 }
 
+// displayNames maps a lower-cased GitHub login to the name shown in the
+// announcements (HERALD_NAME_MAP), for people who are known on IRC by
+// another name than their GitHub login.
+var displayNames = map[string]string{}
+
+// parseNameMap reads "login=name;other=name". Entries without a login or a
+// name are ignored, and logins are matched without regard to case.
+func parseNameMap(s string) map[string]string {
+	m := map[string]string{}
+	for _, entry := range strings.Split(s, ";") {
+		from, to, ok := strings.Cut(strings.TrimSpace(entry), "=")
+		from, to = strings.ToLower(strings.TrimSpace(from)), strings.TrimSpace(to)
+		if ok && from != "" && to != "" {
+			m[from] = to
+		}
+	}
+	return m
+}
+
+// who is the name to show for a GitHub login: the mapped one, else the login.
+func who(login string) string {
+	if n, ok := displayNames[strings.ToLower(login)]; ok {
+		return n
+	}
+	return login
+}
+
 // allChannels is every channel the bot is in: the main one plus every extra.
 func (b *Bot) allChannels() []string {
 	return b.channelsFor("")
@@ -135,6 +162,7 @@ func logf(format string, args ...interface{}) {
 
 func main() {
 	cfg := loadConfig()
+	displayNames = parseNameMap(os.Getenv("HERALD_NAME_MAP"))
 	b := &Bot{cfg: cfg}
 
 	go b.serveHTTP()

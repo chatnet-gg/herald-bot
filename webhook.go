@@ -161,7 +161,7 @@ func formatEvent(eventType string, body []byte) (string, bool) {
 		}
 		if ev.Deleted {
 			branch := strings.TrimPrefix(ev.Ref, "refs/heads/")
-			return fmt.Sprintf("[%s] %s deleted branch %s", shortRepo(ev.Repository.FullName), ev.Pusher.Name, branch), true
+			return fmt.Sprintf("[%s] %s deleted branch %s", shortRepo(ev.Repository.FullName), who(ev.Pusher.Name), branch), true
 		}
 		if len(ev.Commits) == 0 {
 			return "", false
@@ -181,7 +181,7 @@ func formatEvent(eventType string, body []byte) (string, bool) {
 			last = last[:idx]
 		}
 		return fmt.Sprintf("[%s] %s pushed %d %s to %s%s: %s -- %s",
-			shortRepo(ev.Repository.FullName), ev.Pusher.Name, n, commitWord, branch, forcedNote, last, ev.Compare), true
+			shortRepo(ev.Repository.FullName), who(ev.Pusher.Name), n, commitWord, branch, forcedNote, last, ev.Compare), true
 
 	case "pull_request":
 		var ev ghPullRequestEvent
@@ -195,7 +195,7 @@ func formatEvent(eventType string, body []byte) (string, bool) {
 		switch ev.Action {
 		case "opened", "closed", "reopened":
 			return fmt.Sprintf("[%s] %s %s pull request #%d: %s -- %s",
-				shortRepo(ev.Repository.FullName), ev.PullRequest.User.Login, action, ev.Number, ev.PullRequest.Title, ev.PullRequest.HTMLURL), true
+				shortRepo(ev.Repository.FullName), who(ev.PullRequest.User.Login), action, ev.Number, ev.PullRequest.Title, ev.PullRequest.HTMLURL), true
 		}
 		return "", false
 
@@ -207,7 +207,7 @@ func formatEvent(eventType string, body []byte) (string, bool) {
 		switch ev.Action {
 		case "opened", "closed", "reopened":
 			return fmt.Sprintf("[%s] %s %s issue #%d: %s -- %s",
-				shortRepo(ev.Repository.FullName), ev.Issue.User.Login, ev.Action, ev.Issue.Number, ev.Issue.Title, ev.Issue.HTMLURL), true
+				shortRepo(ev.Repository.FullName), who(ev.Issue.User.Login), ev.Action, ev.Issue.Number, ev.Issue.Title, ev.Issue.HTMLURL), true
 		}
 		return "", false
 
@@ -224,7 +224,7 @@ func formatEvent(eventType string, body []byte) (string, bool) {
 			name = ev.Release.TagName
 		}
 		return fmt.Sprintf("[%s] %s published release %s: %s -- %s",
-			shortRepo(ev.Repository.FullName), ev.Release.Author.Login, ev.Release.TagName, name, ev.Release.HTMLURL), true
+			shortRepo(ev.Repository.FullName), who(ev.Release.Author.Login), ev.Release.TagName, name, ev.Release.HTMLURL), true
 
 	default:
 		return "", false

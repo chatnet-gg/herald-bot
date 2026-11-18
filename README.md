@@ -43,6 +43,10 @@ one, for example `owner/repo=#dev,#ops;owner/other=#dev`. Every repository
 still announces in `HERALD_CHANNEL`; the extra channels are joined at start-up
 and rejoined after a kick. Repository names are matched without regard to case.
 
+`HERALD_NAME_MAP` (`login=name;other=name`) replaces a GitHub login with the name
+people know on IRC, in every announcement; logins are matched without regard to
+case and anyone not listed is shown as their login.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
